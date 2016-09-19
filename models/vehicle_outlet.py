@@ -4,8 +4,7 @@ from openerp import api, fields, models
 class VehicleOutlet(models.AbstractModel):
     _name = 'vehicle.outlet'
 
-    contract_id = fields.Many2one('purchase.order')
-    auxiliary_contract = fields.Many2one('purchase.order')
+    contract_id = fields.Many2one('sale.order')
     contract_type = fields.Selection(readonly=True, related="contract_id.contract_type")
     partner_id = fields.Many2one('res.partner', readonly=True, related="contract_id.partner_id")
     street = fields.Char(readonly=True, related='partner_id.street')
@@ -16,9 +15,6 @@ class VehicleOutlet(models.AbstractModel):
     pending = fields.Float(compute="_compute_pending", readonly=True, store=False)
 
     product_id = fields.Many2one('product.product', compute="_compute_product_id", readonly=True, store=False)
-    location_id = fields.Many2one('stock.location', readonly=True, related="contract_id.location_id")
-
-    damaged_location = fields.Many2one('stock.location')
 
     @api.one
     @api.depends('contract_id')
@@ -49,23 +45,8 @@ class VehicleOutlet(models.AbstractModel):
         self.stock_picking_id = self.env['stock.picking'].search([('origin', '=', self.contract_id.name), ('state', '=', 'assigned')], order='date', limit=1)
         if self.stock_picking_id:
             picking = [self.stock_picking_id.id]
-            if self.clean_kilos / 1000 <= self.hired:
-                self._do_enter_transfer_details(picking, self.stock_picking_id, self.clean_kilos, self.location_id)
-            else:
-                self._do_enter_transfer_details(picking, self.stock_picking_id, self.hired * 1000, self.location_id)
-                self.auxiliary_contract = self.env['purchase.order'].create({'partner_id': self.contract_id.partner_id.id,
-                                                                             'location_id': self.contract_id.location_id.id,
-                                                                             'pricelist_id': self.contract_id.pricelist_id.id})
-                self.auxiliary_contract.order_line = self.env['purchase.order.line'].create({
-                    'order_id': self.auxiliary_contract.id,
-                    'product_id': self.contract_id.order_line[0].product_id.id,
-                    'name': self.contract_id.order_line[0].name,
-                    'date_planned': self.contract_id.order_line[0].date_planned,
-                    'company_id': self.contract_id.order_line[0].company_id.id,
-                    'product_qty': (self.clean_kilos/1000 - self.hired),
-                    'price_unit': self.contract_id.order_line[0].price_unit,
-                })
-                self.fun_ship()
+            self._do_enter_transfer_details(picking, self.stock_picking_id, self.clean_kilos)
+            self.fun_ship()
 
     @api.multi
     def fun_ship(self):
@@ -74,7 +55,7 @@ class VehicleOutlet(models.AbstractModel):
             stock_picking_id_cancel.action_cancel()
 
     @api.multi
-    def _do_enter_transfer_details(self, picking_id, picking, clean_kilos, location_id, context=None):
+    def _do_enter_transfer_details(self, picking_id, picking, clean_kilos, context=None):
         if not context:
             context = {}
         else:
@@ -98,7 +79,6 @@ class VehicleOutlet(models.AbstractModel):
                 'quantity': clean_kilos/1000,
                 'package_id': op.package_id.id,
                 'lot_id': op.lot_id.id,
-                'sourceloc_id': op.location_id.id,
                 'destinationloc_id': op.location_dest_id.id,
                 'result_package_id': op.result_package_id.id,
                 'date': op.date,

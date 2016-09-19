@@ -15,11 +15,12 @@ class VehicleOutlet(models.AbstractModel):
     pending = fields.Float(compute="_compute_pending", readonly=True, store=False)
 
     product_id = fields.Many2one('product.product', compute="_compute_product_id", readonly=True, store=False)
+    location_id = fields.Many2one('stock.location', readonly=True, related="contract_id.warehouse_id.wh_input_stock_loc_id")
 
     @api.one
     @api.depends('contract_id')
     def _compute_hired(self):
-        self.hired = sum(line.product_qty for line in self.contract_id.order_line)
+        self.hired = sum(line.product_uom_qty for line in self.contract_id.order_line)
 
     @api.one
     @api.depends('contract_id')
@@ -42,11 +43,12 @@ class VehicleOutlet(models.AbstractModel):
 
     @api.multi
     def fun_transfer(self):
-        self.stock_picking_id = self.env['stock.picking'].search([('origin', '=', self.contract_id.name), ('state', '=', 'assigned')], order='date', limit=1)
+        self.stock_picking_id = self.env['stock.picking'].search([('origin', '=', self.contract_id.name), ('state', '=', 'confirmed')], order='date', limit=1)
         if self.stock_picking_id:
-            picking = [self.stock_picking_id.id]
-            self._do_enter_transfer_details(picking, self.stock_picking_id, self.clean_kilos)
-            self.fun_ship()
+            self.stock_picking_id.action_assign()
+            if self.stock_picking_id.state == 'assigned':
+                picking = [self.stock_picking_id.id]
+                self._do_enter_transfer_details(picking, self.stock_picking_id, self.clean_kilos, self.location_id)
 
     @api.multi
     def fun_ship(self):
@@ -55,7 +57,7 @@ class VehicleOutlet(models.AbstractModel):
             stock_picking_id_cancel.action_cancel()
 
     @api.multi
-    def _do_enter_transfer_details(self, picking_id, picking, clean_kilos, context=None):
+    def _do_enter_transfer_details(self, picking_id, picking, clean_kilos, location_id, context=None):
         if not context:
             context = {}
         else:
@@ -79,6 +81,7 @@ class VehicleOutlet(models.AbstractModel):
                 'quantity': clean_kilos/1000,
                 'package_id': op.package_id.id,
                 'lot_id': op.lot_id.id,
+                'sourceloc_id': op.location_id.id,
                 'destinationloc_id': op.location_dest_id.id,
                 'result_package_id': op.result_package_id.id,
                 'date': op.date,

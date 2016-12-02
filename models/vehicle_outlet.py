@@ -9,6 +9,7 @@ class VehicleOutlet(models.AbstractModel):
     partner_id = fields.Many2one('res.partner', readonly=True, related="contract_id.partner_id")
     street = fields.Char(readonly=True, related='partner_id.street')
     contract_state = fields.Selection(readonly=True, related="contract_id.state")
+    active = fields.Boolean(default=True, string="Activo")
 
     hired = fields.Float(compute="_compute_hired", readonly=True, store=False)
     delivered = fields.Float(compute="_compute_delivered", readonly=True, store=False)
@@ -50,7 +51,7 @@ class VehicleOutlet(models.AbstractModel):
             self.stock_picking_id.action_assign()
             if self.stock_picking_id.state == 'assigned':
                 picking = [self.stock_picking_id.id]
-                self._do_enter_transfer_details(picking, self.stock_picking_id, self.clean_kilos, self.location_id)
+                self._do_enter_transfer_details(picking, self.stock_picking_id, self.raw_kilos, self.location_id)
 
     @api.multi
     def fun_ship(self):
@@ -59,7 +60,7 @@ class VehicleOutlet(models.AbstractModel):
             stock_picking_id_cancel.action_cancel()
 
     @api.multi
-    def _do_enter_transfer_details(self, picking_id, picking, clean_kilos, location_id, context=None):
+    def _do_enter_transfer_details(self, picking_id, picking, raw_kilos, location_id, context=None):
         if not context:
             context = {}
         else:
@@ -80,7 +81,7 @@ class VehicleOutlet(models.AbstractModel):
                 'packop_id': op.id,
                 'product_id': op.product_id.id,
                 'product_uom_id': op.product_uom_id.id,
-                'quantity': clean_kilos/1000,
+                'quantity': raw_kilos/1000,
                 'package_id': op.package_id.id,
                 'lot_id': op.lot_id.id,
                 'sourceloc_id': op.location_id.id,

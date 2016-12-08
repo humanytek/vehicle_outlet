@@ -16,7 +16,7 @@ class VehicleOutlet(models.AbstractModel):
     pending = fields.Float(compute="_compute_pending", readonly=True, store=False)
 
     product_id = fields.Many2one('product.product', compute="_compute_product_id", readonly=True, store=False)
-    location_id = fields.Many2one('stock.location', readonly=True, related="contract_id.warehouse_id.wh_input_stock_loc_id")
+    location_id = fields.Many2one('stock.location')
 
     exceeded = fields.Boolean(readonly=True)
 
@@ -52,6 +52,8 @@ class VehicleOutlet(models.AbstractModel):
         else:
             self.stock_picking_id = self.env['stock.picking'].search([('origin', '=', self.contract_id.name), ('state', '=', 'assigned')], order='date', limit=1)
         if self.stock_picking_id:
+            for move in self.stock_picking_id.move_lines:
+                move.location_id = self.location_id
             if self.raw_kilos > self.stock_picking_id.move_lines[0].product_uom_qty:
                 self.exceeded = True
             self._do_enter_transfer_details()

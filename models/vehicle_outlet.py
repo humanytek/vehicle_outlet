@@ -46,7 +46,7 @@ class VehicleOutlet(models.AbstractModel):
 
     @api.multi
     def fun_transfer(self):
-        self.stock_picking_id = self.env['stock.picking'].search([('origin', '=', self.contract_id.name), ('state', '=', 'confirmed')], order='date', limit=1)
+        self.stock_picking_id = self.env['stock.picking'].search([('origin', '=', self.contract_id.name), ('state', 'in', ['confirmed', 'partially_available'])], order='date', limit=1)
         if self.stock_picking_id:
             self.stock_picking_id.force_assign()
         else:
